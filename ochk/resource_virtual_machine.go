@@ -148,11 +148,6 @@ func resourceVirtualMachine() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 				Computed: true,
-				// this is re-encrypt operation type, it is not stored anywhere, so backend will not return the same value.
-				// This suppresses any reported differences to avoid config drift
-				//DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-				//	return true
-				//},
 			},
 			"created_by": {
 				Type:     schema.TypeString,
@@ -303,12 +298,6 @@ func mapVirtualMachineToResourceData(d *schema.ResourceData, virtualMachine *mod
 		}
 		if virtualMachine.EncryptionInstance.EncryptionKeyID != "" {
 			if err := d.Set("encryption_key_id", virtualMachine.EncryptionInstance.EncryptionKeyID); err != nil {
-				return fmt.Errorf("error setting created_by: %w", err)
-			}
-		}
-
-		if virtualMachine.EncryptionInstance.RecryptOperation != "" {
-			if err := d.Set("encryption_recrypt", virtualMachine.EncryptionInstance.RecryptOperation); err != nil {
 				return fmt.Errorf("error setting created_by: %w", err)
 			}
 		}

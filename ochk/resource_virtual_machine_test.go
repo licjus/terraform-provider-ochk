@@ -271,7 +271,6 @@ func TestAccVirtualMachineResource_create_with_managed_encryption(t *testing.T) 
 			{VirtualNetworkID: testDataResourceID(&vnet1)},
 		},
 		Encryption: true,
-		EncryptionRecrypt: "SHALLOW",
 	}
 
 	configInitial := deployment.ToString() + subtenant1.ToString() + vnet1.ToString() + kmsAESKey.ToString() + virtualMachine.ToString()
