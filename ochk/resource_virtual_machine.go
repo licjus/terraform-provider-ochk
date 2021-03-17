@@ -336,7 +336,7 @@ func mapResourceDataToVirtualMachine(d *schema.ResourceData) *models.VcsVirtualM
 	}
 
 	encryptionInstance := &models.EncryptionInstance{
-		Encrypt:          d.Get("encryption").(bool),
+		Encrypt: d.Get("encryption").(bool),
 	}
 
 	if recryptOperation, ok := d.GetOk("encryption_recrypt"); ok && recryptOperation.(string) != "" {

@@ -335,7 +335,7 @@ func TestAccVirtualMachineResource_create_with_own_encryption(t *testing.T) {
 		VirtualNetworkDevices: []struct{ VirtualNetworkID string }{
 			{VirtualNetworkID: testDataResourceID(&vnet1)},
 		},
-		Encryption: true,
+		Encryption:      true,
 		EncryptionKeyID: testDataResourceID(&kmsAESKey),
 	}
 
@@ -384,7 +384,6 @@ func virtualMachineChecks(resourceName string, vm VirtualMachineTestData, subten
 		resource.TestCheckResourceAttrSet(resourceName, "modified_at"),
 	)
 }
-
 
 func testAccVirtualMachineResourceNotExists(displayName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
