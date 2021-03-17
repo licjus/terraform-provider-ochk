@@ -142,13 +142,14 @@ func resourceVirtualMachine() *schema.Resource {
 			"encryption_key_id": {
 				Type:     schema.TypeString,
 				Optional: true,
+				Computed: true,
 			},
 			"encryption_recrypt": {
 				Type:     schema.TypeString,
-				Default:  "NONE",
 				Optional: true,
-				//// Setting recrypt operation is possible only on update, subsequent read gets empty string,
-				//// which causes config drift. This suppresses any reported differences.
+				Computed: true,
+				// this is re-encrypt operation type, it is not stored anywhere, so backend will not return the same value.
+				// This suppresses any reported differences to avoid config drift
 				//DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
 				//	return true
 				//},
@@ -345,16 +346,25 @@ func mapResourceDataToVirtualMachine(d *schema.ResourceData) *models.VcsVirtualM
 		VirtualNetworkDevices: expandVirtualNetworkDevices(d.Get("virtual_network_devices").([]interface{})),
 	}
 
-	virtualMachineInstance.EncryptionInstance = &models.EncryptionInstance{
+	encryptionInstance := &models.EncryptionInstance{
 		Encrypt:          d.Get("encryption").(bool),
-		RecryptOperation: d.Get("encryption_recrypt").(string),
+	}
+
+	if recryptOperation, ok := d.GetOk("encryption_recrypt"); ok && recryptOperation.(string) != "" {
+		encryptionInstance.RecryptOperation = d.Get("encryption_recrypt").(string)
+	} else {
+		encryptionInstance.RecryptOperation = "NONE"
 	}
 
 	if encryptionKeyId, ok := d.GetOk("encryption_key_id"); ok && encryptionKeyId.(string) != "" {
-		virtualMachineInstance.EncryptionInstance.EncryptionKeyID = encryptionKeyId.(string)
-		virtualMachineInstance.EncryptionInstance.Managed = false
+		encryptionInstance.EncryptionKeyID = encryptionKeyId.(string)
+		encryptionInstance.Managed = false
 	} else {
-		virtualMachineInstance.EncryptionInstance.Managed = true
+		encryptionInstance.Managed = true
+	}
+
+	if !encryptionInstance.Managed || encryptionInstance.Encrypt {
+		virtualMachineInstance.EncryptionInstance = encryptionInstance
 	}
 
 	virtualDisks := expandVirtualDisks(d.Get("virtual_disk").(*schema.Set).List())

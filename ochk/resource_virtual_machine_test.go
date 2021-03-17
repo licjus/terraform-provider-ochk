@@ -234,7 +234,7 @@ func TestAccVirtualMachineResource_create_update_minimal(t *testing.T) {
 	})
 }
 
-func TestAccVirtualMachineResource_create_with_encryption(t *testing.T) {
+func TestAccVirtualMachineResource_create_with_managed_encryption(t *testing.T) {
 	subtenant1 := SubtenantDataSourceTestData{
 		ResourceName: "subtenant1",
 		Name:         testData.SubtenantForVMName,
@@ -271,6 +271,7 @@ func TestAccVirtualMachineResource_create_with_encryption(t *testing.T) {
 			{VirtualNetworkID: testDataResourceID(&vnet1)},
 		},
 		Encryption: true,
+		EncryptionRecrypt: "SHALLOW",
 	}
 
 	configInitial := deployment.ToString() + subtenant1.ToString() + vnet1.ToString() + kmsAESKey.ToString() + virtualMachine.ToString()
@@ -281,26 +282,71 @@ func TestAccVirtualMachineResource_create_with_encryption(t *testing.T) {
 
 	configUpdated := deployment.ToString() + subtenant1.ToString() + vnet1.ToString() + kmsAESKey.ToString() + virtualMachineUpdated.ToString()
 
-	vmChecks := func(resourceName string, vm VirtualMachineTestData, subtenant SubtenantDataSourceTestData, deployment DeploymentDataSourceTestData) resource.TestCheckFunc {
-		return resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "display_name", vm.DisplayName),
-			resource.TestCheckResourceAttrPair(resourceName, "deployment_id", deployment.FullResourceName(), "id"),
-			resource.TestCheckResourceAttr(resourceName, "power_state", vm.PowerState),
-			resource.TestCheckResourceAttr(resourceName, "resource_profile", vm.ResourceProfile),
-			resource.TestCheckResourceAttr(resourceName, "storage_policy", vm.StoragePolicy),
-			resource.TestCheckResourceAttrPair(resourceName, "subtenant_id", subtenant.FullResourceName(), "id"),
-			resource.TestCheckResourceAttrPair(resourceName, "virtual_network_devices.0.virtual_network_id", vnet1.FullResourceName(), "id"),
-			resource.TestCheckResourceAttrSet(resourceName, "virtual_network_devices.0.device_id"),
-			resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.controller_id"),
-			resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.lun_id"),
-			resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.size_mb"),
-			resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.device_type"),
-			resource.TestCheckResourceAttrSet(resourceName, "created_by"),
-			resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-			resource.TestCheckResourceAttrSet(resourceName, "modified_by"),
-			resource.TestCheckResourceAttrSet(resourceName, "modified_at"),
-		)
+	resourceName := virtualMachine.FullResourceName()
+	resource.ParallelTest(t, resource.TestCase{
+		ProviderFactories: testAccProviderFactories,
+
+		Steps: []resource.TestStep{
+			{
+				Config: configInitial,
+				Check:  virtualMachineChecks(resourceName, virtualMachine, subtenant1, deployment, vnet1),
+			},
+			{
+				Config: configUpdated,
+				Check:  virtualMachineChecks(resourceName, virtualMachineUpdated, subtenant1, deployment, vnet1),
+			},
+		},
+		CheckDestroy: testAccVirtualMachineResourceNotExists(virtualMachine.DisplayName),
+	})
+}
+
+func TestAccVirtualMachineResource_create_with_own_encryption(t *testing.T) {
+	subtenant1 := SubtenantDataSourceTestData{
+		ResourceName: "subtenant1",
+		Name:         testData.SubtenantForVMName,
 	}
+
+	deployment := DeploymentDataSourceTestData{
+		ResourceName: "deployment",
+		DisplayName:  testData.Deployment1DisplayName,
+	}
+
+	vnet1 := VirtualNetworkDataSourceTestData{
+		ResourceName: "vnet1",
+		DisplayName:  testData.VirtualNetwork1DisplayName,
+	}
+
+	kmsAESKey := KMSKeyTestData{
+		ResourceName: "key",
+		DisplayName:  generateShortRandName(),
+		KeyUsage:     []string{"ENCRYPT", "DECRYPT"},
+		Algorithm:    "AES",
+		Size:         256,
+	}
+
+	virtualMachine := VirtualMachineTestData{
+		ResourceName:    "default",
+		DisplayName:     generateShortRandName(),
+		DeploymentID:    testDataResourceID(&deployment),
+		InitialPassword: "50b90880f9f",
+		PowerState:      "poweredOn",
+		ResourceProfile: "SIZE_S",
+		StoragePolicy:   "STANDARD",
+		SubtenantID:     testDataResourceID(&subtenant1),
+		VirtualNetworkDevices: []struct{ VirtualNetworkID string }{
+			{VirtualNetworkID: testDataResourceID(&vnet1)},
+		},
+		Encryption: true,
+		EncryptionKeyID: testDataResourceID(&kmsAESKey),
+	}
+
+	configInitial := deployment.ToString() + subtenant1.ToString() + vnet1.ToString() + kmsAESKey.ToString() + virtualMachine.ToString()
+
+	virtualMachineUpdated := virtualMachine
+	virtualMachineUpdated.EncryptionKeyID = ""
+	virtualMachineUpdated.EncryptionRecrypt = "SHALLOW"
+
+	configUpdated := deployment.ToString() + subtenant1.ToString() + vnet1.ToString() + kmsAESKey.ToString() + virtualMachineUpdated.ToString()
 
 	resourceName := virtualMachine.FullResourceName()
 	resource.ParallelTest(t, resource.TestCase{
@@ -309,16 +355,37 @@ func TestAccVirtualMachineResource_create_with_encryption(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: configInitial,
-				Check:  vmChecks(resourceName, virtualMachine, subtenant1, deployment),
+				Check:  virtualMachineChecks(resourceName, virtualMachine, subtenant1, deployment, vnet1),
 			},
 			{
 				Config: configUpdated,
-				Check:  vmChecks(resourceName, virtualMachineUpdated, subtenant1, deployment),
+				Check:  virtualMachineChecks(resourceName, virtualMachineUpdated, subtenant1, deployment, vnet1),
 			},
 		},
 		CheckDestroy: testAccVirtualMachineResourceNotExists(virtualMachine.DisplayName),
 	})
 }
+func virtualMachineChecks(resourceName string, vm VirtualMachineTestData, subtenant SubtenantDataSourceTestData, deployment DeploymentDataSourceTestData, vnet VirtualNetworkDataSourceTestData) resource.TestCheckFunc {
+	return resource.ComposeAggregateTestCheckFunc(
+		resource.TestCheckResourceAttr(resourceName, "display_name", vm.DisplayName),
+		resource.TestCheckResourceAttrPair(resourceName, "deployment_id", deployment.FullResourceName(), "id"),
+		resource.TestCheckResourceAttr(resourceName, "power_state", vm.PowerState),
+		resource.TestCheckResourceAttr(resourceName, "resource_profile", vm.ResourceProfile),
+		resource.TestCheckResourceAttr(resourceName, "storage_policy", vm.StoragePolicy),
+		resource.TestCheckResourceAttrPair(resourceName, "subtenant_id", subtenant.FullResourceName(), "id"),
+		resource.TestCheckResourceAttrPair(resourceName, "virtual_network_devices.0.virtual_network_id", vnet.FullResourceName(), "id"),
+		resource.TestCheckResourceAttrSet(resourceName, "virtual_network_devices.0.device_id"),
+		resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.controller_id"),
+		resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.lun_id"),
+		resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.size_mb"),
+		resource.TestCheckResourceAttrSet(resourceName, "virtual_disk.0.device_type"),
+		resource.TestCheckResourceAttrSet(resourceName, "created_by"),
+		resource.TestCheckResourceAttrSet(resourceName, "created_at"),
+		resource.TestCheckResourceAttrSet(resourceName, "modified_by"),
+		resource.TestCheckResourceAttrSet(resourceName, "modified_at"),
+	)
+}
+
 
 func testAccVirtualMachineResourceNotExists(displayName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {

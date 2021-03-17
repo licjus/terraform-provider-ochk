@@ -20,7 +20,8 @@ import (
 type EncryptionInstance struct {
 
 	// encrypt
-	Encrypt bool `json:"encrypt,omitempty"`
+	// FIXME omitempty removed by hand
+	Encrypt bool `json:"encrypt"`
 
 	// encryption key Id
 	EncryptionKeyID string `json:"encryptionKeyId,omitempty"`
@@ -29,7 +30,7 @@ type EncryptionInstance struct {
 	EncryptionProviderID string `json:"encryptionProviderId,omitempty"`
 
 	// managed
-	// FIXME omit empty removed by hand temporarily
+	// FIXME omitempty removed by hand
 	Managed bool `json:"managed"`
 
 	// recrypt operation

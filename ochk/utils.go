@@ -10,5 +10,5 @@ func generateRandName() string {
 }
 
 func generateShortRandName() string {
-	return fmt.Sprintf("tf-%s", acctest.RandStringFromCharSet(8, acctest.CharSetAlphaNum))
+	return fmt.Sprintf("tf-%s", acctest.RandStringFromCharSet(4, acctest.CharSetAlphaNum))
 }
